@@ -1,0 +1,20 @@
+[package]
+name = "host_packer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "host_packer"
+path = "src/lib.rs"
+
+[[bin]]
+name = "raksha"
+path = "src/main.rs"
+
+[dependencies]
+raksha-core = { path = "../raksha-core" }
+anyhow = "1"
+goblin = { version = "0.9", default-features = false, features = ["pe64", "std"] }
+# OS CSPRNG for the master key — works on native Windows (no /dev/urandom).
+getrandom = "0.2"

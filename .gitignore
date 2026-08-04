@@ -1,0 +1,26 @@
+# Rust / Cargo
+/target
+**/*.rs.bk
+
+# Local toolchain workaround (machine-specific linker path)
+.cargo/
+
+# Build artifacts (packer output + fixtures)
+*.exe
+*.dll
+
+# MSVC debug info
+*.pdb
+
+# Packed fixture outputs
+fixtures/*_packed.exe
+
+# Working/design docs (kept out of the public repo)
+docs/
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+Desktop.ini

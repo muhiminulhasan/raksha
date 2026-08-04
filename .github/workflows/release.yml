@@ -1,0 +1,82 @@
+name: build-release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The stub is a no_std cdylib linked against the mingw CRT, so the whole
+      # workspace must be built with the x86_64-pc-windows-gnu toolchain.
+      - name: Install mingw-w64 (gcc)
+        uses: msys2/setup-msys2@v2
+        with:
+          path-type: inherit
+          install: mingw-w64-x86_64-gcc
+
+      - name: Install GNU Rust toolchain
+        shell: pwsh
+        run: |
+          rustup toolchain install stable-x86_64-pc-windows-gnu --profile minimal
+          rustup default stable-x86_64-pc-windows-gnu
+          rustc --version
+          gcc --version | Select-Object -First 1
+
+      # Point the windows-gnu linker at the real mingw gcc. The rustup-bundled
+      # self-contained ld can emit PEs with an empty import directory, which
+      # Windows rejects; the mingw-w64 gcc driver links valid images.
+      - name: Configure windows-gnu linker
+        shell: pwsh
+        run: |
+          $gcc = (Get-Command x86_64-w64-mingw32-gcc).Source
+          if (-not $gcc) { Write-Error "x86_64-w64-mingw32-gcc not found"; exit 1 }
+          $dir = Split-Path $gcc
+          # Persist mingw on PATH for every later step (and their subprocesses).
+          $dir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          # TOML strings escape backslashes as \\ (raw Windows paths are invalid).
+          $linker = "$dir\x86_64-w64-mingw32-gcc.exe".Replace('\', '\\')
+          New-Item -ItemType Directory -Force -Path .cargo | Out-Null
+          "[target.x86_64-pc-windows-gnu]" | Set-Content .cargo/config.toml
+          "linker = `"$linker`"" | Add-Content .cargo/config.toml
+          Get-Content .cargo/config.toml
+
+      - name: Build release
+        shell: pwsh
+        run: cargo build --release
+
+      - name: Run tests
+        shell: pwsh
+        run: cargo test --workspace
+
+      - name: Stage artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item target\release\raksha.exe dist\
+          Copy-Item target\release\runtime_stub.dll dist\
+          Get-ChildItem dist
+          Compress-Archive -Path dist\* -DestinationPath raksha-windows-x64.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: raksha-windows-x64
+          path: raksha-windows-x64.zip
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: raksha-windows-x64.zip
+          generate_release_notes: true

@@ -1,0 +1,12 @@
+[package]
+name = "raksha-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# No external crypto deps: the runtime stub is injected no_std *shellcode*,
+# and the `blake3`/`chacha20` crates' cpufeatures runtime CPU detection calls
+# `__cpuid` and selects SIMD backends — both fault in detached code. Crypto is
+# implemented detection-free in `src/crypto.rs` (pure-Rust ChaCha20, RFC 8439).
+# This keeps the crate `#![no_std]` with zero dependencies.
